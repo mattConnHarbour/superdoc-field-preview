@@ -1,0 +1,444 @@
+:root {
+  --app-border: var(--sd-color-border, #dfe3e8);
+  --app-muted: var(--sd-color-text-secondary, #667085);
+  --app-blue: var(--sd-color-primary, #1355d9);
+  --app-canvas: var(--sd-color-background, #f3f5f7);
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 760px;
+  background: var(--app-canvas);
+}
+
+.app-header {
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72px;
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-header h1,
+.app-header p,
+.sidebar-heading h2,
+.sidebar-heading p {
+  margin: 0;
+}
+
+.app-header h1 {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.app-header p {
+  margin-top: 3px;
+  color: var(--app-muted);
+  font-size: 13px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sdt-highlight-toggle {
+  height: 36px;
+  padding: 0 12px;
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 600;
+  background: #fff;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sdt-highlight-toggle.active {
+  color: var(--app-blue);
+  background: #edf4ff;
+  border-color: #8bb0f4;
+}
+
+.sdt-highlight-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.field-mode-toggle {
+  display: flex;
+  padding: 3px;
+  background: #f2f4f7;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+}
+
+.field-mode-toggle button {
+  height: 28px;
+  padding: 0 10px;
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.field-mode-toggle button.active {
+  color: #344054;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 8%);
+}
+
+.field-mode-toggle button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.button {
+  height: 36px;
+  padding: 0 14px;
+  color: #344054;
+  background: #fff;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.button-primary {
+  color: #fff;
+  background: var(--app-blue);
+  border-color: var(--app-blue);
+}
+
+.button-primary:hover:not(:disabled) {
+  background: #104abd;
+}
+
+.button:disabled,
+.field-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 312px;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.document-workspace {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transition: outline-color 120ms ease;
+}
+
+/* Keep SuperDoc's intrinsic toolbar width from expanding the grid track. */
+.document-workspace .superdoc-wrapper,
+.document-workspace .superdoc-toolbar-container,
+.document-workspace .superdoc-editor-container,
+.document-workspace .superdoc,
+.document-workspace .superdoc__layers,
+.document-workspace .superdoc__document,
+.document-workspace .superdoc__sub-document {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.document-workspace .superdoc-wrapper,
+.document-workspace .superdoc-editor-container {
+  overflow: hidden;
+}
+
+.document-workspace .superdoc-toolbar-container {
+  flex: 0 0 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Center the paginated editor inside the available document pane. */
+.document-workspace .superdoc__sub-document > *,
+.document-workspace .presentation-editor,
+.document-workspace .super-editor {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Ephemeral authoring aid: this never changes the DOCX or exported styling. */
+.show-sdt-outlines
+  .document-workspace
+  [data-sdt-id][data-sdt-tag^='{"fieldId":'] {
+  outline: 2px solid var(--app-blue) !important;
+  outline-offset: 1px;
+}
+
+.loading-state {
+  display: grid;
+  height: 100%;
+  color: var(--app-muted);
+  place-items: center;
+}
+
+.field-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 20px;
+  background: #fff;
+  border-left: 1px solid var(--app-border);
+}
+
+.eyebrow {
+  color: var(--app-blue);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sidebar-heading h2 {
+  margin-top: 4px;
+  font-size: 18px;
+}
+
+.sidebar-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.sidebar-title-row h2 {
+  margin: 0;
+}
+
+.add-field-button {
+  padding: 5px 8px;
+  color: var(--app-blue);
+  font-size: 11px;
+  font-weight: 650;
+  background: #edf4ff;
+  border: 1px solid #b8cdf5;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.add-field-button:hover {
+  color: #fff;
+  background: var(--app-blue);
+  border-color: var(--app-blue);
+}
+
+.sidebar-heading p {
+  margin-top: 7px;
+  color: var(--app-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.field-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.field-card {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+}
+
+.field-card:hover {
+  background: #f8fbff;
+  border-color: #8bb0f4;
+}
+
+.field-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  color: var(--app-blue);
+  background: #edf4ff;
+  border-radius: 5px;
+  place-items: center;
+}
+
+.field-icon svg {
+  width: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+}
+
+.field-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.field-copy strong {
+  overflow: hidden;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-copy small {
+  overflow: hidden;
+  color: var(--app-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-card-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.edit-field-button,
+.insert-field-button {
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 650;
+  background: #fff;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.edit-field-button {
+  color: #475467;
+  border: 1px solid var(--app-border);
+}
+
+.edit-field-button:hover {
+  background: #f2f4f7;
+}
+
+.insert-field-button {
+  color: var(--app-blue);
+  border: 1px solid #9bb9ee;
+}
+
+.insert-field-button:hover:not(:disabled) {
+  color: #fff;
+  background: var(--app-blue);
+  border-color: var(--app-blue);
+}
+
+.insert-field-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.field-edit-view {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.back-button {
+  align-self: flex-start;
+  margin: 0 0 18px;
+  padding: 0;
+  color: var(--app-blue);
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.field-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.field-edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-edit-form label > span {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.field-edit-form input {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  color: #1d2939;
+  background: #fff;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  outline: none;
+}
+
+.field-edit-form input:focus {
+  border-color: var(--app-blue);
+  box-shadow: 0 0 0 3px rgb(19 85 217 / 10%);
+}
+
+.field-edit-form label small {
+  color: var(--app-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.field-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.sidebar-status {
+  margin-top: auto;
+  padding-top: 16px;
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  border-top: 1px solid var(--app-border);
+}
