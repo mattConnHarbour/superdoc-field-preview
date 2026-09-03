@@ -83,9 +83,15 @@ function App() {
   const [fields, setFields] = useState(() => fieldController.list());
   const [fieldDisplayMode, setFieldDisplayMode] =
     useState<FieldDisplayMode>("placeholders");
+
+  // ===== Field highlighting =====
   const [highlightSdts, setHighlightSdts] = useState(false);
+  // ===== End field highlighting =====
+
+  // ===== Drag and drop logic =====
   const [draggedFieldId, setDraggedFieldId] = useState<string | null>(null);
   const [isDraggingOverDocument, setIsDraggingOverDocument] = useState(false);
+  // ===== End drag and drop logic =====
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [isCreatingField, setIsCreatingField] = useState(false);
   const [fieldDraft, setFieldDraft] = useState({
@@ -158,6 +164,7 @@ function App() {
     }
   };
 
+  // ===== Drag and drop logic =====
   const handleFieldDragStart = (
     event: React.DragEvent<HTMLElement>,
     field: TemplateField,
@@ -198,7 +205,9 @@ function App() {
 
     void insertField(field, hit.target);
   };
+  // ===== End drag and drop logic =====
 
+  // ===== Field value/placeholder toggle =====
   const setFieldMode = (mode: FieldDisplayMode) => {
     const doc =
       editorRef.current?.getInstance()?.activeEditor?.doc ??
@@ -232,6 +241,7 @@ function App() {
       `${label} shown${updated ? ` in ${updated} field${updated === 1 ? "" : "s"}` : ""}.`,
     );
   };
+  // ===== End field value/placeholder toggle =====
 
   const beginEditingField = (field: TemplateField) => {
     setIsCreatingField(false);
@@ -342,6 +352,7 @@ function App() {
           <p>Build reusable DOCX templates with structured fields.</p>
         </div>
         <div className="header-actions">
+          {/* ===== Field highlighting ===== */}
           <button
             className={`sdt-highlight-toggle ${highlightSdts ? "active" : ""}`}
             type="button"
@@ -351,6 +362,9 @@ function App() {
           >
             Highlight SDTs
           </button>
+          {/* ===== End field highlighting ===== */}
+
+          {/* ===== Field value/placeholder toggle ===== */}
           <div className="field-mode-toggle" aria-label="Field display mode">
             <button
               className={fieldDisplayMode === "placeholders" ? "active" : ""}
@@ -367,6 +381,7 @@ function App() {
               Values
             </button>
           </div>
+          {/* ===== End field value/placeholder toggle ===== */}
           <button
             className="button"
             onClick={() => fileInputRef.current?.click()}
@@ -398,6 +413,7 @@ function App() {
       </header>
 
       <main className="workspace">
+        {/* ===== Drag and drop logic ===== */}
         <section
           className={`document-workspace ${isDraggingOverDocument ? "drag-over" : ""}`}
           aria-label="Document editor"
@@ -446,6 +462,7 @@ function App() {
             style={{ height: "100%" }}
           />
         </section>
+        {/* ===== End drag and drop logic ===== */}
 
         <aside className="field-sidebar">
           {editingFieldId || isCreatingField ? (
