@@ -333,13 +333,15 @@ function App() {
     event.target.value = "";
   };
 
-  const handleExport = async () => {
-    setFieldMode("values");
+  const handleExport = async (mode: FieldDisplayMode) => {
+    setFieldMode(mode);
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() => resolve()),
     );
     await editorRef.current?.getInstance()?.export({ triggerDownload: true });
-    setMessage("Template exported with field values displayed.");
+    setMessage(
+      `Template exported with field ${mode === "values" ? "values" : "placeholders"} displayed.`,
+    );
   };
 
   return (
@@ -389,11 +391,18 @@ function App() {
             onChange={handleFileSelect}
           />
           <button
+            className="button"
+            disabled={!isReady}
+            onClick={() => void handleExport("placeholders")}
+          >
+            Export with placeholders
+          </button>
+          <button
             className="button button-primary"
             disabled={!isReady}
-            onClick={handleExport}
+            onClick={() => void handleExport("values")}
           >
-            Export template
+            Export with values
           </button>
         </div>
       </header>

@@ -7,7 +7,7 @@ The demo starts with four reusable fields: User name, Email address, Company nam
 The bundled Mutual NDA opens as the default document.
 
 The header toggle switches inserted fields between their labels and sample values.
-Export automatically switches every inserted field to its configured value before downloading the DOCX.
+The two export actions normalize every inserted field to either its placeholder or configured value before downloading the DOCX.
 The Highlight SDTs toggle adds a temporary blue outline to template-field content controls without exposing hidden metadata-anchor SDTs or changing the exported document.
 Each field's Edit action opens a sidebar form for changing its placeholder and value; saving also refreshes matching SDTs already in the document.
 The Add field action creates additional reusable fields with their own name, placeholder, and value.
