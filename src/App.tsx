@@ -561,7 +561,7 @@ function App() {
                     Cancel
                   </button>
                   <button className="button button-primary" type="submit">
-                    {isCreatingField ? "Add field" : "Save field"}
+                    {isCreatingField ? "Add field" : "Save"}
                   </button>
                 </div>
               </form>
