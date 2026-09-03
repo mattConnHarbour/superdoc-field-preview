@@ -88,6 +88,8 @@ function App() {
   const [fieldDisplayMode, setFieldDisplayMode] =
     useState<FieldDisplayMode>("placeholders");
   const [highlightSdts, setHighlightSdts] = useState(false);
+  const [draggedFieldId, setDraggedFieldId] = useState<string | null>(null);
+  const [isDraggingOverDocument, setIsDraggingOverDocument] = useState(false);
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [isCreatingField, setIsCreatingField] = useState(false);
   const [fieldDraft, setFieldDraft] = useState({
@@ -121,10 +123,14 @@ function App() {
     return target;
   };
 
-  const insertField = async (field: TemplateField) => {
+  const insertField = async (
+    field: TemplateField,
+    explicitTarget?: SelectionTarget,
+  ) => {
     const editor =
       editorRef.current?.getInstance()?.activeEditor ?? activeEditorRef.current;
-    const target = insertionTargetRef.current ?? captureInsertionTarget();
+    const target =
+      explicitTarget ?? insertionTargetRef.current ?? captureInsertionTarget();
 
     if (!editor?.doc?.create?.contentControl) {
       setMessage(
@@ -154,6 +160,47 @@ function App() {
     } else {
       setMessage(result.failure?.message ?? `Could not insert ${field.label}.`);
     }
+  };
+
+  const handleFieldDragStart = (
+    event: React.DragEvent<HTMLElement>,
+    field: TemplateField,
+  ) => {
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/x-superdoc-field", field.id);
+    event.dataTransfer.setData("text/plain", field.label);
+    setDraggedFieldId(field.id);
+    setMessage(`Drop ${field.label} where it should appear in the document.`);
+  };
+
+  const handleDocumentDragOver = (event: React.DragEvent<HTMLElement>) => {
+    if (!draggedFieldId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setIsDraggingOverDocument(true);
+  };
+
+  const handleDocumentDrop = (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    setIsDraggingOverDocument(false);
+
+    const fieldId =
+      event.dataTransfer.getData("application/x-superdoc-field") ||
+      draggedFieldId;
+    const field = fields.find((candidate) => candidate.id === fieldId);
+    const hit = uiRef.current?.viewport.positionAt({
+      x: event.clientX,
+      y: event.clientY,
+    });
+
+    setDraggedFieldId(null);
+    if (!field) return;
+    if (!hit) {
+      setMessage("Drop the field directly onto a document page.");
+      return;
+    }
+
+    void insertField(field, hit.target);
   };
 
   const setFieldMode = (mode: FieldDisplayMode) => {
@@ -347,7 +394,22 @@ function App() {
       </header>
 
       <main className="workspace">
-        <section className="document-workspace" aria-label="Document editor">
+        <section
+          className={`document-workspace ${isDraggingOverDocument ? "drag-over" : ""}`}
+          aria-label="Document editor"
+          onDragEnter={(event) => {
+            if (!draggedFieldId) return;
+            event.preventDefault();
+            setIsDraggingOverDocument(true);
+          }}
+          onDragOver={handleDocumentDragOver}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+              setIsDraggingOverDocument(false);
+            }
+          }}
+          onDrop={handleDocumentDrop}
+        >
           <SuperDocEditor
             ref={editorRef}
             document={document}
@@ -490,15 +552,30 @@ function App() {
                   </button>
                 </div>
                 <p>
-                  Place the cursor in the document, then insert a field. Fields
-                  can be reused.
+                  Drag a field onto the document, or place the cursor and use
+                  Insert. Fields can be reused.
                 </p>
               </div>
 
               <div className="field-list">
                 {fields.map((field) => (
-                  <div className="field-card" key={field.id}>
-                    <span className="field-icon">
+                  <div
+                    className={`field-card ${draggedFieldId === field.id ? "dragging" : ""}`}
+                    key={field.id}
+                  >
+                    <span
+                      className="field-icon field-drag-handle"
+                      draggable={isReady}
+                      title="Drag into the document"
+                      aria-label={`Drag ${field.label} into the document`}
+                      onDragStart={(event) =>
+                        handleFieldDragStart(event, field)
+                      }
+                      onDragEnd={() => {
+                        setDraggedFieldId(null);
+                        setIsDraggingOverDocument(false);
+                      }}
+                    >
                       <FieldIcon />
                     </span>
                     <span className="field-copy">

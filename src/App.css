@@ -153,6 +153,11 @@
   transition: outline-color 120ms ease;
 }
 
+.document-workspace.drag-over {
+  outline-color: var(--app-blue);
+  background: #eaf2ff;
+}
+
 /* Keep SuperDoc's intrinsic toolbar width from expanding the grid track. */
 .document-workspace .superdoc-wrapper,
 .document-workspace .superdoc-toolbar-container,
@@ -283,6 +288,10 @@
   border-color: #8bb0f4;
 }
 
+.field-card.dragging {
+  opacity: 0.55;
+}
+
 .field-icon {
   display: grid;
   width: 32px;
@@ -300,6 +309,15 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.4;
+}
+
+.field-drag-handle {
+  cursor: grab;
+  user-select: none;
+}
+
+.field-drag-handle:active {
+  cursor: grabbing;
 }
 
 .field-copy {

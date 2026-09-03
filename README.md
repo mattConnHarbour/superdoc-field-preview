@@ -1,6 +1,6 @@
 # React template builder
 
-A React template-authoring workflow built on `@superdoc-dev/react`. It provides a right-hand field library whose Insert buttons create inline Word content controls (SDTs) at the current editor cursor.
+A React template-authoring workflow built on `@superdoc-dev/react`. It provides a right-hand field library whose fields create inline Word content controls (SDTs) when dropped onto the document or inserted at the current editor cursor.
 
 The demo starts with four reusable fields: User name, Email address, Company name, and Date. It also supports opening an existing DOCX and exporting the completed template.
 
@@ -20,7 +20,7 @@ pnpm install
 pnpm dev
 ```
 
-Place the cursor in editable document text, then click Insert beside a field.
+Drag a field's blue handle onto editable document text to insert it at that exact position. You can also place the cursor in the document and click Insert beside a field.
 
 This project deliberately does not use `@superdoc-dev/template-builder`. Field insertion calls `editor.doc.create.contentControl(...)` directly through `@superdoc-dev/react`.
 
