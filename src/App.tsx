@@ -3,15 +3,10 @@ import { SuperDocEditor } from "@superdoc-dev/react";
 import type { Editor, SuperDocRef } from "@superdoc-dev/react";
 import { createSuperDocUI } from "superdoc/ui";
 import type { SelectionTarget, SuperDocUI } from "superdoc/ui";
+import { FieldController } from "./FieldController";
+import type { TemplateField } from "./FieldController";
 import "@superdoc-dev/react/style.css";
 import "./App.css";
-
-type TemplateField = {
-  id: string;
-  label: string;
-  placeholder: string;
-  value: string;
-};
 
 type FieldDisplayMode = "placeholders" | "values";
 
@@ -84,7 +79,8 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [document, setDocument] = useState<string | File>("/mutual-NDA.docx");
   const [isReady, setIsReady] = useState(false);
-  const [fields, setFields] = useState(defaultFields);
+  const [fieldController] = useState(() => new FieldController(defaultFields));
+  const [fields, setFields] = useState(() => fieldController.list());
   const [fieldDisplayMode, setFieldDisplayMode] =
     useState<FieldDisplayMode>("placeholders");
   const [highlightSdts, setHighlightSdts] = useState(false);
@@ -187,7 +183,7 @@ function App() {
     const fieldId =
       event.dataTransfer.getData("application/x-superdoc-field") ||
       draggedFieldId;
-    const field = fields.find((candidate) => candidate.id === fieldId);
+    const field = fieldId ? fieldController.get(fieldId) : undefined;
     const hit = uiRef.current?.viewport.positionAt({
       x: event.clientX,
       y: event.clientY,
@@ -258,43 +254,27 @@ function App() {
       const label = fieldDraft.label.trim();
       if (!label) return;
 
-      const baseId =
-        label
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "") || "field";
-      let id = baseId;
-      let suffix = 2;
-      while (fields.some((field) => field.id === id)) {
-        id = `${baseId}-${suffix}`;
-        suffix += 1;
-      }
-
-      const newField: TemplateField = {
-        id,
+      const newField = fieldController.create({
         label,
-        placeholder: fieldDraft.placeholder.trim() || label,
-        value: fieldDraft.value.trim(),
-      };
-      setFields((current) => [...current, newField]);
+        placeholder: fieldDraft.placeholder,
+        value: fieldDraft.value,
+      });
+      setFields(fieldController.list());
       setIsCreatingField(false);
       setMessage(`${label} added.`);
       return;
     }
 
-    const field = fields.find((candidate) => candidate.id === editingFieldId);
+    if (!editingFieldId) return;
+    const field = fieldController.get(editingFieldId);
     if (!field) return;
 
-    const updatedField = {
-      ...field,
-      placeholder: fieldDraft.placeholder.trim() || field.label,
-      value: fieldDraft.value.trim(),
-    };
-    setFields((current) =>
-      current.map((candidate) =>
-        candidate.id === updatedField.id ? updatedField : candidate,
-      ),
-    );
+    const updatedField = fieldController.update(field.id, {
+      placeholder: fieldDraft.placeholder,
+      value: fieldDraft.value,
+    });
+    if (!updatedField) return;
+    setFields(fieldController.list());
 
     const doc =
       editorRef.current?.getInstance()?.activeEditor?.doc ??
@@ -317,6 +297,16 @@ function App() {
 
     setEditingFieldId(null);
     setMessage(`${field.label} updated.`);
+  };
+
+  const deleteField = () => {
+    if (!editingFieldId) return;
+    const field = fieldController.get(editingFieldId);
+    if (!field || !fieldController.delete(editingFieldId)) return;
+
+    setFields(fieldController.list());
+    closeFieldEditor();
+    setMessage(`${field.label} removed from the field library.`);
   };
 
   const closeFieldEditor = () => {
@@ -474,8 +464,7 @@ function App() {
                 <h2>
                   {isCreatingField
                     ? "Add a field"
-                    : fields.find((field) => field.id === editingFieldId)
-                        ?.label}
+                    : fieldController.get(editingFieldId ?? "")?.label}
                 </h2>
                 <p>
                   {isCreatingField
@@ -538,6 +527,15 @@ function App() {
                   <small>Shown when Values is selected.</small>
                 </label>
                 <div className="field-edit-actions">
+                  {!isCreatingField && (
+                    <button
+                      className="button delete-field-button"
+                      type="button"
+                      onClick={deleteField}
+                    >
+                      Delete
+                    </button>
+                  )}
                   <button
                     className="button"
                     type="button"

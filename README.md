@@ -11,6 +11,7 @@ The two export actions normalize every inserted field to either its placeholder 
 The Highlight SDTs toggle adds a temporary blue outline to template-field content controls without exposing hidden metadata-anchor SDTs or changing the exported document.
 Each field's Edit action opens a sidebar form for changing its placeholder and value; saving also refreshes matching SDTs already in the document.
 The Add field action creates additional reusable fields with their own name, placeholder, and value.
+Field definitions are managed by a dedicated `FieldController` that owns create, read, update, and delete operations.
 
 ## Run
 

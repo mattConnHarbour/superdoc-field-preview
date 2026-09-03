@@ -452,6 +452,16 @@
   margin-top: 4px;
 }
 
+.delete-field-button {
+  margin-right: auto;
+  color: #b42318;
+  border-color: #f2b8b5;
+}
+
+.delete-field-button:hover:not(:disabled) {
+  background: #fff1f0;
+}
+
 .sidebar-status {
   margin-top: auto;
   padding-top: 16px;
