@@ -334,7 +334,12 @@ function App() {
   };
 
   const handleExport = async () => {
+    setFieldMode("values");
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
     await editorRef.current?.getInstance()?.export({ triggerDownload: true });
+    setMessage("Template exported with field values displayed.");
   };
 
   return (
