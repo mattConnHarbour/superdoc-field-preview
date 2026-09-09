@@ -12,7 +12,7 @@ The Highlight SDTs toggle adds a temporary blue outline to template-field conten
 Each field's Edit action opens a sidebar form for changing its placeholder and value; saving also refreshes matching SDTs already in the document.
 The Add field action creates additional reusable fields with their own name, placeholder, and value.
 Field definitions are managed by a dedicated `FieldController` that owns create, read, update, and delete operations.
-Typing a completed `{{Field name}}` token converts it into a field. Name matching is case-insensitive; unknown names are added to the field library automatically.
+Typing a completed `{{Field name}}` token converts the token ending at the current caret into a field, without consuming older brace strings elsewhere in the document. Name matching is case-insensitive; unknown names are added to the field library automatically.
 Dropping a field directly onto an existing template field replaces that field's tag, label, and displayed content.
 
 ## Run

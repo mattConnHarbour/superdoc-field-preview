@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { SuperDocEditor } from "@superdoc-dev/react";
 import type { Editor, SuperDocRef } from "@superdoc-dev/react";
 import { createSuperDocUI } from "superdoc/ui";
-import type { SelectionTarget, SuperDocUI } from "superdoc/ui";
+import type { SelectionPoint, SelectionTarget, SuperDocUI } from "superdoc/ui";
 import { FieldController } from "./FieldController";
 import type { TemplateField } from "./FieldController";
 import "@superdoc-dev/react/style.css";
@@ -172,7 +172,10 @@ function App() {
   };
 
   // ===== {{field}} autocomplete logic =====
-  const convertNextFieldToken = async (editor: Editor) => {
+  const convertRecentFieldToken = async (
+    editor: Editor,
+    caret: Extract<SelectionPoint, { kind: "text" }>,
+  ) => {
     if (isConvertingTokenRef.current) return;
 
     const result = editor.doc.query.match({
@@ -183,9 +186,17 @@ function App() {
         caseSensitive: true,
       },
       require: "any",
-      limit: 1,
+      limit: 1000,
+      ...(caret.story ? { in: caret.story } : {}),
     });
-    const match = result.items[0];
+    const match = result.items.find((item) => {
+      if (item.matchKind !== "text") return false;
+      const lastBlock = item.blocks[item.blocks.length - 1];
+      return (
+        lastBlock.blockId === caret.blockId &&
+        lastBlock.range.end === caret.offset
+      );
+    });
     if (!match || match.matchKind !== "text") return;
 
     const token = match.blocks.map((block) => block.text).join("");
@@ -219,18 +230,19 @@ function App() {
     } finally {
       isConvertingTokenRef.current = false;
     }
-
-    scheduleFieldTokenConversion(editor);
   };
 
-  const scheduleFieldTokenConversion = (editor: Editor) => {
+  const scheduleFieldTokenConversion = (
+    editor: Editor,
+    caret: Extract<SelectionPoint, { kind: "text" }>,
+  ) => {
     if (isConvertingTokenRef.current) return;
     if (autocompleteTimerRef.current !== null) {
       window.clearTimeout(autocompleteTimerRef.current);
     }
     autocompleteTimerRef.current = window.setTimeout(() => {
       autocompleteTimerRef.current = null;
-      void convertNextFieldToken(editor);
+      void convertRecentFieldToken(editor, caret);
     }, 0);
   };
   // ===== End {{field}} autocomplete logic =====
@@ -553,7 +565,18 @@ function App() {
             }}
             onTransaction={({ sourceEditor, transaction }) => {
               if (transaction.docChanged) {
-                scheduleFieldTokenConversion(sourceEditor);
+                const selection = sourceEditor.doc.selection.current().target;
+                const segment = selection
+                  ? selection.segments[selection.segments.length - 1]
+                  : undefined;
+                if (segment) {
+                  scheduleFieldTokenConversion(sourceEditor, {
+                    kind: "text",
+                    blockId: segment.blockId,
+                    offset: segment.range.end,
+                    ...(selection?.story ? { story: selection.story } : {}),
+                  });
+                }
               }
             }}
             onEditorDestroy={() => {
