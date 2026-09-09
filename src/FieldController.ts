@@ -24,6 +24,14 @@ export class FieldController {
     return field ? { ...field } : undefined;
   }
 
+  getByName(name: string): TemplateField | undefined {
+    const normalizedName = name.trim().toLocaleLowerCase();
+    const field = this.fields.find(
+      (candidate) => candidate.label.toLocaleLowerCase() === normalizedName,
+    );
+    return field ? { ...field } : undefined;
+  }
+
   create(input: CreateFieldInput): TemplateField {
     const label = input.label.trim();
     if (!label) throw new Error("Field name is required.");

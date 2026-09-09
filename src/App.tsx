@@ -76,6 +76,8 @@ function App() {
   const activeEditorRef = useRef<Editor | null>(null);
   const uiRef = useRef<SuperDocUI | null>(null);
   const insertionTargetRef = useRef<SelectionTarget | null>(null);
+  const autocompleteTimerRef = useRef<number | null>(null);
+  const isConvertingTokenRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [document, setDocument] = useState<string | File>("/mutual-NDA.docx");
   const [isReady, setIsReady] = useState(false);
@@ -83,6 +85,8 @@ function App() {
   const [fields, setFields] = useState(() => fieldController.list());
   const [fieldDisplayMode, setFieldDisplayMode] =
     useState<FieldDisplayMode>("placeholders");
+  const fieldDisplayModeRef = useRef(fieldDisplayMode);
+  fieldDisplayModeRef.current = fieldDisplayMode;
 
   // ===== Field highlighting =====
   const [highlightSdts, setHighlightSdts] = useState(false);
@@ -102,6 +106,9 @@ function App() {
   const [message, setMessage] = useState(
     "Place your cursor in the document, then insert a field.",
   );
+
+  const getFieldContent = (field: TemplateField) =>
+    fieldDisplayModeRef.current === "values" ? field.value : field.placeholder;
 
   const captureInsertionTarget = () => {
     const capture = uiRef.current?.selection.capture();
@@ -150,7 +157,7 @@ function App() {
       kind: "inline",
       controlType: "text",
       at: target,
-      content: fieldDisplayMode === "values" ? field.value : field.placeholder,
+      content: getFieldContent(field),
       alias: field.label,
       tag: fieldTag(field),
       lockMode: "unlocked",
@@ -163,6 +170,70 @@ function App() {
       setMessage(result.failure?.message ?? `Could not insert ${field.label}.`);
     }
   };
+
+  // ===== {{field}} autocomplete logic =====
+  const convertNextFieldToken = async (editor: Editor) => {
+    if (isConvertingTokenRef.current) return;
+
+    const result = editor.doc.query.match({
+      select: {
+        type: "text",
+        pattern: "\\{\\{[^{}\\r\\n]+\\}\\}",
+        mode: "regex",
+        caseSensitive: true,
+      },
+      require: "any",
+      limit: 1,
+    });
+    const match = result.items[0];
+    if (!match || match.matchKind !== "text") return;
+
+    const token = match.blocks.map((block) => block.text).join("");
+    const fieldName = token.slice(2, -2).trim();
+    if (!fieldName) return;
+
+    let field = fieldController.getByName(fieldName);
+    if (!field) {
+      field = fieldController.create({
+        label: fieldName,
+        placeholder: fieldName,
+        value: fieldName,
+      });
+      setFields(fieldController.list());
+    }
+
+    isConvertingTokenRef.current = true;
+    try {
+      const createResult = await editor.doc.create.contentControl({
+        kind: "inline",
+        controlType: "text",
+        at: match.target,
+        content: getFieldContent(field),
+        alias: field.label,
+        tag: fieldTag(field),
+        lockMode: "unlocked",
+      });
+      if (createResult.success) {
+        setMessage(`${token} converted to the ${field.label} field.`);
+      }
+    } finally {
+      isConvertingTokenRef.current = false;
+    }
+
+    scheduleFieldTokenConversion(editor);
+  };
+
+  const scheduleFieldTokenConversion = (editor: Editor) => {
+    if (isConvertingTokenRef.current) return;
+    if (autocompleteTimerRef.current !== null) {
+      window.clearTimeout(autocompleteTimerRef.current);
+    }
+    autocompleteTimerRef.current = window.setTimeout(() => {
+      autocompleteTimerRef.current = null;
+      void convertNextFieldToken(editor);
+    }, 0);
+  };
+  // ===== End {{field}} autocomplete logic =====
 
   // ===== Drag and drop logic =====
   const handleFieldDragStart = (
@@ -195,11 +266,48 @@ function App() {
       x: event.clientX,
       y: event.clientY,
     });
+    const existingFieldHit = uiRef.current?.viewport
+      .entityAt({ x: event.clientX, y: event.clientY })
+      .find(
+        (entity) =>
+          entity.type === "contentControl" &&
+          entity.tag?.startsWith('{"fieldId":'),
+      );
 
     setDraggedFieldId(null);
     if (!field) return;
     if (!hit) {
       setMessage("Drop the field directly onto a document page.");
+      return;
+    }
+
+    if (existingFieldHit?.type === "contentControl") {
+      const editor =
+        editorRef.current?.getInstance()?.activeEditor ??
+        activeEditorRef.current;
+      const kind =
+        existingFieldHit.scope === "block"
+          ? ("block" as const)
+          : ("inline" as const);
+      const target = {
+        kind,
+        nodeType: "sdt" as const,
+        nodeId: existingFieldHit.id,
+      };
+      const patchResult = editor?.doc.contentControls.patch({
+        target,
+        alias: field.label,
+        tag: fieldTag(field),
+      });
+      const valueResult = editor?.doc.contentControls.text.setValue({
+        target,
+        value: getFieldContent(field),
+      });
+      if (patchResult?.success && valueResult?.success) {
+        setMessage(`Existing field replaced with ${field.label}.`);
+      } else {
+        setMessage(`Could not replace the existing field.`);
+      }
       return;
     }
 
@@ -235,6 +343,7 @@ function App() {
       }
     }
 
+    fieldDisplayModeRef.current = mode;
     setFieldDisplayMode(mode);
     const label = mode === "values" ? "Field values" : "Field placeholders";
     setMessage(
@@ -442,11 +551,20 @@ function App() {
             onEditorCreate={({ editor }) => {
               activeEditorRef.current = editor;
             }}
+            onTransaction={({ sourceEditor, transaction }) => {
+              if (transaction.docChanged) {
+                scheduleFieldTokenConversion(sourceEditor);
+              }
+            }}
             onEditorDestroy={() => {
               activeEditorRef.current = null;
               uiRef.current?.destroy();
               uiRef.current = null;
               insertionTargetRef.current = null;
+              if (autocompleteTimerRef.current !== null) {
+                window.clearTimeout(autocompleteTimerRef.current);
+                autocompleteTimerRef.current = null;
+              }
             }}
             onReady={({ superdoc }) => {
               uiRef.current?.destroy();
