@@ -2,15 +2,17 @@ import { useRef, useState } from "react";
 import { SuperDocEditor } from "@superdoc-dev/react";
 import type { Editor, SuperDocRef } from "@superdoc-dev/react";
 import { createSuperDocUI } from "superdoc/ui";
-import type { SelectionPoint, SelectionTarget, SuperDocUI } from "superdoc/ui";
-import { FieldController } from "./FieldController";
-import type { TemplateField } from "./FieldController";
+import type { SelectionTarget, SuperDocUI } from "superdoc/ui";
+import { FieldAutofillController } from "./fieldControllers/autofill";
+import { FieldController } from "./fieldControllers/crud";
+import { FieldDragDropController } from "./fieldControllers/dragDrop";
+import type { Field } from "./fieldControllers/types";
 import "@superdoc-dev/react/style.css";
 import "./App.css";
 
 type FieldDisplayMode = "placeholders" | "values";
 
-const defaultFields: TemplateField[] = [
+const defaultFields: Field[] = [
   {
     id: "user-name",
     label: "User name",
@@ -37,8 +39,7 @@ const defaultFields: TemplateField[] = [
   },
 ];
 
-const fieldTag = (field: TemplateField) =>
-  JSON.stringify({ fieldId: field.id });
+const fieldTag = (field: Field) => JSON.stringify({ fieldId: field.id });
 
 const toolbarModules = {
   toolbar: {
@@ -76,13 +77,14 @@ function App() {
   const activeEditorRef = useRef<Editor | null>(null);
   const uiRef = useRef<SuperDocUI | null>(null);
   const insertionTargetRef = useRef<SelectionTarget | null>(null);
-  const autocompleteTimerRef = useRef<number | null>(null);
-  const isConvertingTokenRef = useRef(false);
+  const autofillControllerRef = useRef<FieldAutofillController | null>(null);
+  const dragDropControllerRef = useRef<FieldDragDropController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [document, setDocument] = useState<string | File>("/mutual-NDA.docx");
   const [isReady, setIsReady] = useState(false);
   const [fieldController] = useState(() => new FieldController(defaultFields));
-  const [fields, setFields] = useState(() => fieldController.list());
+  const [fieldSet] = useState(() => new Set(fieldController.list()));
+  const [fields, setFields] = useState(() => [...fieldSet]);
   const [fieldDisplayMode, setFieldDisplayMode] =
     useState<FieldDisplayMode>("placeholders");
   const fieldDisplayModeRef = useRef(fieldDisplayMode);
@@ -107,8 +109,31 @@ function App() {
     "Place your cursor in the document, then insert a field.",
   );
 
-  const getFieldContent = (field: TemplateField) =>
+  const getFieldContent = (field: Field) =>
     fieldDisplayModeRef.current === "values" ? field.value : field.placeholder;
+
+  const syncFieldSet = () => {
+    const nextFields = fieldController.list();
+    fieldSet.clear();
+    for (const field of nextFields) fieldSet.add(field);
+    setFields(nextFields);
+  };
+
+  if (!autofillControllerRef.current) {
+    autofillControllerRef.current = new FieldAutofillController({
+      fields: fieldSet,
+      createField: (input) => {
+        const field = fieldController.create(input);
+        syncFieldSet();
+        return field;
+      },
+      getSelectionTarget: () =>
+        uiRef.current?.selection.getSnapshot().selectionTarget ?? null,
+      getFieldContent,
+      getFieldTag: fieldTag,
+      onMessage: setMessage,
+    });
+  }
 
   const captureInsertionTarget = () => {
     const capture = uiRef.current?.selection.capture();
@@ -133,7 +158,7 @@ function App() {
   };
 
   const insertField = async (
-    field: TemplateField,
+    field: Field,
     explicitTarget?: SelectionTarget,
   ) => {
     const editor =
@@ -171,176 +196,21 @@ function App() {
     }
   };
 
-  // ===== {{field}} autocomplete logic =====
-  const convertRecentFieldToken = async (editor: Editor) => {
-    if (isConvertingTokenRef.current) return;
-
-    const selection = editor.doc.selection.current().target;
-    const segment = selection
-      ? selection.segments[selection.segments.length - 1]
-      : undefined;
-    if (!segment) return;
-    const caret: Extract<SelectionPoint, { kind: "text" }> = {
-      kind: "text",
-      blockId: segment.blockId,
-      offset: segment.range.end,
-      ...(selection?.story ? { story: selection.story } : {}),
-    };
-
-    const result = editor.doc.query.match({
-      select: {
-        type: "text",
-        pattern: "\\{\\{[^{}\\r\\n]+\\}\\}",
-        mode: "regex",
-        caseSensitive: true,
-      },
-      require: "any",
-      limit: 1000,
-      ...(caret.story ? { in: caret.story } : {}),
-    });
-    const match = result.items
-      .filter((item) => {
-        if (item.matchKind !== "text") return false;
-        const lastBlock = item.blocks[item.blocks.length - 1];
-        const distanceFromCaret = caret.offset - lastBlock.range.end;
-        return (
-          lastBlock.blockId === caret.blockId &&
-          distanceFromCaret >= 0 &&
-          distanceFromCaret <= 1
-        );
-      })
-      .sort((left, right) => {
-        if (left.matchKind !== "text" || right.matchKind !== "text") return 0;
-        const leftEnd = left.blocks[left.blocks.length - 1].range.end;
-        const rightEnd = right.blocks[right.blocks.length - 1].range.end;
-        return rightEnd - leftEnd;
-      })[0];
-    if (!match || match.matchKind !== "text") return;
-
-    const token = match.blocks.map((block) => block.text).join("");
-    const fieldName = token.slice(2, -2).trim();
-    if (!fieldName) return;
-
-    let field = fieldController.getByName(fieldName);
-    if (!field) {
-      field = fieldController.create({
-        label: fieldName,
-        placeholder: fieldName,
-        value: fieldName,
-      });
-      setFields(fieldController.list());
-    }
-
-    isConvertingTokenRef.current = true;
-    try {
-      const createResult = await editor.doc.create.contentControl({
-        kind: "inline",
-        controlType: "text",
-        at: match.target,
-        content: getFieldContent(field),
-        alias: field.label,
-        tag: fieldTag(field),
-        lockMode: "unlocked",
-      });
-      if (createResult.success) {
-        setMessage(`${token} converted to the ${field.label} field.`);
-      }
-    } finally {
-      isConvertingTokenRef.current = false;
-    }
-  };
-
-  const scheduleFieldTokenConversion = (editor: Editor) => {
-    if (isConvertingTokenRef.current) return;
-    if (autocompleteTimerRef.current !== null) {
-      window.clearTimeout(autocompleteTimerRef.current);
-    }
-    autocompleteTimerRef.current = window.setTimeout(() => {
-      autocompleteTimerRef.current = null;
-      void convertRecentFieldToken(editor);
-    }, 0);
-  };
-  // ===== End {{field}} autocomplete logic =====
-
-  // ===== Drag and drop logic =====
-  const handleFieldDragStart = (
-    event: React.DragEvent<HTMLElement>,
-    field: TemplateField,
-  ) => {
-    event.dataTransfer.effectAllowed = "copy";
-    event.dataTransfer.setData("application/x-superdoc-field", field.id);
-    event.dataTransfer.setData("text/plain", field.label);
-    setDraggedFieldId(field.id);
-    setMessage(`Drop ${field.label} where it should appear in the document.`);
-  };
-
-  const handleDocumentDragOver = (event: React.DragEvent<HTMLElement>) => {
-    if (!draggedFieldId) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "copy";
-    setIsDraggingOverDocument(true);
-  };
-
-  const handleDocumentDrop = (event: React.DragEvent<HTMLElement>) => {
-    event.preventDefault();
-    setIsDraggingOverDocument(false);
-
-    const fieldId =
-      event.dataTransfer.getData("application/x-superdoc-field") ||
-      draggedFieldId;
-    const field = fieldId ? fieldController.get(fieldId) : undefined;
-    const hit = uiRef.current?.viewport.positionAt({
-      x: event.clientX,
-      y: event.clientY,
-    });
-    const existingFieldHit = uiRef.current?.viewport
-      .entityAt({ x: event.clientX, y: event.clientY })
-      .find(
-        (entity) =>
-          entity.type === "contentControl" &&
-          entity.tag?.startsWith('{"fieldId":'),
-      );
-
-    setDraggedFieldId(null);
-    if (!field) return;
-    if (!hit) {
-      setMessage("Drop the field directly onto a document page.");
-      return;
-    }
-
-    if (existingFieldHit?.type === "contentControl") {
-      const editor =
+  if (!dragDropControllerRef.current) {
+    dragDropControllerRef.current = new FieldDragDropController({
+      fields: fieldSet,
+      getEditor: () =>
         editorRef.current?.getInstance()?.activeEditor ??
-        activeEditorRef.current;
-      const kind =
-        existingFieldHit.scope === "block"
-          ? ("block" as const)
-          : ("inline" as const);
-      const target = {
-        kind,
-        nodeType: "sdt" as const,
-        nodeId: existingFieldHit.id,
-      };
-      const patchResult = editor?.doc.contentControls.patch({
-        target,
-        alias: field.label,
-        tag: fieldTag(field),
-      });
-      const valueResult = editor?.doc.contentControls.text.setValue({
-        target,
-        value: getFieldContent(field),
-      });
-      if (patchResult?.success && valueResult?.success) {
-        setMessage(`Existing field replaced with ${field.label}.`);
-      } else {
-        setMessage(`Could not replace the existing field.`);
-      }
-      return;
-    }
-
-    void insertField(field, hit.target);
-  };
-  // ===== End drag and drop logic =====
+        activeEditorRef.current,
+      getUI: () => uiRef.current,
+      getFieldContent,
+      getFieldTag: fieldTag,
+      insertField: (field, target) => insertField(field, target),
+      onDraggedFieldChange: setDraggedFieldId,
+      onDocumentDragChange: setIsDraggingOverDocument,
+      onMessage: setMessage,
+    });
+  }
 
   // ===== Field value/placeholder toggle =====
   const setFieldMode = (mode: FieldDisplayMode) => {
@@ -379,7 +249,7 @@ function App() {
   };
   // ===== End field value/placeholder toggle =====
 
-  const beginEditingField = (field: TemplateField) => {
+  const beginEditingField = (field: Field) => {
     setIsCreatingField(false);
     setEditingFieldId(field.id);
     setFieldDraft({
@@ -405,7 +275,7 @@ function App() {
         placeholder: fieldDraft.placeholder,
         value: fieldDraft.value,
       });
-      setFields(fieldController.list());
+      syncFieldSet();
       setIsCreatingField(false);
       setMessage(`${label} added.`);
       return;
@@ -420,7 +290,7 @@ function App() {
       value: fieldDraft.value,
     });
     if (!updatedField) return;
-    setFields(fieldController.list());
+    syncFieldSet();
 
     const doc =
       editorRef.current?.getInstance()?.activeEditor?.doc ??
@@ -450,7 +320,7 @@ function App() {
     const field = fieldController.get(editingFieldId);
     if (!field || !fieldController.delete(editingFieldId)) return;
 
-    setFields(fieldController.list());
+    syncFieldSet();
     closeFieldEditor();
     setMessage(`${field.label} removed from the field library.`);
   };
@@ -553,18 +423,18 @@ function App() {
         <section
           className={`document-workspace ${isDraggingOverDocument ? "drag-over" : ""}`}
           aria-label="Document editor"
-          onDragEnter={(event) => {
-            if (!draggedFieldId) return;
-            event.preventDefault();
-            setIsDraggingOverDocument(true);
-          }}
-          onDragOver={handleDocumentDragOver}
-          onDragLeave={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node)) {
-              setIsDraggingOverDocument(false);
-            }
-          }}
-          onDrop={handleDocumentDrop}
+          onDragEnter={(event) =>
+            dragDropControllerRef.current?.handleDocumentDragEnter(event)
+          }
+          onDragOver={(event) =>
+            dragDropControllerRef.current?.handleDocumentDragOver(event)
+          }
+          onDragLeave={(event) =>
+            dragDropControllerRef.current?.handleDocumentDragLeave(event)
+          }
+          onDrop={(event) =>
+            dragDropControllerRef.current?.handleDocumentDrop(event)
+          }
         >
           <SuperDocEditor
             ref={editorRef}
@@ -579,19 +449,17 @@ function App() {
               activeEditorRef.current = editor;
             }}
             onTransaction={({ sourceEditor, transaction }) => {
-              if (transaction.docChanged) {
-                scheduleFieldTokenConversion(sourceEditor);
-              }
+              autofillControllerRef.current?.handleTransaction(
+                sourceEditor,
+                transaction,
+              );
             }}
             onEditorDestroy={() => {
               activeEditorRef.current = null;
               uiRef.current?.destroy();
               uiRef.current = null;
               insertionTargetRef.current = null;
-              if (autocompleteTimerRef.current !== null) {
-                window.clearTimeout(autocompleteTimerRef.current);
-                autocompleteTimerRef.current = null;
-              }
+              autofillControllerRef.current?.destroy();
             }}
             onReady={({ superdoc }) => {
               uiRef.current?.destroy();
@@ -743,12 +611,14 @@ function App() {
                       title="Drag into the document"
                       aria-label={`Drag ${field.label} into the document`}
                       onDragStart={(event) =>
-                        handleFieldDragStart(event, field)
+                        dragDropControllerRef.current?.handleFieldDragStart(
+                          event,
+                          field,
+                        )
                       }
-                      onDragEnd={() => {
-                        setDraggedFieldId(null);
-                        setIsDraggingOverDocument(false);
-                      }}
+                      onDragEnd={() =>
+                        dragDropControllerRef.current?.handleFieldDragEnd()
+                      }
                     >
                       <FieldIcon />
                     </span>

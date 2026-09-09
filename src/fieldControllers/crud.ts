@@ -1,30 +1,22 @@
-export type TemplateField = {
-  id: string;
-  label: string;
-  placeholder: string;
-  value: string;
-};
-
-export type CreateFieldInput = Omit<TemplateField, "id">;
-export type UpdateFieldInput = Partial<Omit<TemplateField, "id">>;
+import type { CreateFieldInput, Field, UpdateFieldInput } from "./types";
 
 export class FieldController {
-  private fields: TemplateField[];
+  private fields: Field[];
 
-  constructor(initialFields: TemplateField[] = []) {
+  constructor(initialFields: Field[] = []) {
     this.fields = initialFields.map((field) => ({ ...field }));
   }
 
-  list(): TemplateField[] {
+  list(): Field[] {
     return this.fields.map((field) => ({ ...field }));
   }
 
-  get(id: string): TemplateField | undefined {
+  get(id: string): Field | undefined {
     const field = this.fields.find((candidate) => candidate.id === id);
     return field ? { ...field } : undefined;
   }
 
-  getByName(name: string): TemplateField | undefined {
+  getByName(name: string): Field | undefined {
     const normalizedName = name.trim().toLocaleLowerCase();
     const field = this.fields.find(
       (candidate) => candidate.label.toLocaleLowerCase() === normalizedName,
@@ -32,7 +24,7 @@ export class FieldController {
     return field ? { ...field } : undefined;
   }
 
-  create(input: CreateFieldInput): TemplateField {
+  create(input: CreateFieldInput): Field {
     const label = input.label.trim();
     if (!label) throw new Error("Field name is required.");
 
@@ -58,7 +50,7 @@ export class FieldController {
     return { ...field };
   }
 
-  update(id: string, input: UpdateFieldInput): TemplateField | undefined {
+  update(id: string, input: UpdateFieldInput): Field | undefined {
     const current = this.fields.find((field) => field.id === id);
     if (!current) return undefined;
 
