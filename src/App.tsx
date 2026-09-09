@@ -172,11 +172,20 @@ function App() {
   };
 
   // ===== {{field}} autocomplete logic =====
-  const convertRecentFieldToken = async (
-    editor: Editor,
-    caret: Extract<SelectionPoint, { kind: "text" }>,
-  ) => {
+  const convertRecentFieldToken = async (editor: Editor) => {
     if (isConvertingTokenRef.current) return;
+
+    const selection = editor.doc.selection.current().target;
+    const segment = selection
+      ? selection.segments[selection.segments.length - 1]
+      : undefined;
+    if (!segment) return;
+    const caret: Extract<SelectionPoint, { kind: "text" }> = {
+      kind: "text",
+      blockId: segment.blockId,
+      offset: segment.range.end,
+      ...(selection?.story ? { story: selection.story } : {}),
+    };
 
     const result = editor.doc.query.match({
       select: {
@@ -189,14 +198,23 @@ function App() {
       limit: 1000,
       ...(caret.story ? { in: caret.story } : {}),
     });
-    const match = result.items.find((item) => {
-      if (item.matchKind !== "text") return false;
-      const lastBlock = item.blocks[item.blocks.length - 1];
-      return (
-        lastBlock.blockId === caret.blockId &&
-        lastBlock.range.end === caret.offset
-      );
-    });
+    const match = result.items
+      .filter((item) => {
+        if (item.matchKind !== "text") return false;
+        const lastBlock = item.blocks[item.blocks.length - 1];
+        const distanceFromCaret = caret.offset - lastBlock.range.end;
+        return (
+          lastBlock.blockId === caret.blockId &&
+          distanceFromCaret >= 0 &&
+          distanceFromCaret <= 1
+        );
+      })
+      .sort((left, right) => {
+        if (left.matchKind !== "text" || right.matchKind !== "text") return 0;
+        const leftEnd = left.blocks[left.blocks.length - 1].range.end;
+        const rightEnd = right.blocks[right.blocks.length - 1].range.end;
+        return rightEnd - leftEnd;
+      })[0];
     if (!match || match.matchKind !== "text") return;
 
     const token = match.blocks.map((block) => block.text).join("");
@@ -232,17 +250,14 @@ function App() {
     }
   };
 
-  const scheduleFieldTokenConversion = (
-    editor: Editor,
-    caret: Extract<SelectionPoint, { kind: "text" }>,
-  ) => {
+  const scheduleFieldTokenConversion = (editor: Editor) => {
     if (isConvertingTokenRef.current) return;
     if (autocompleteTimerRef.current !== null) {
       window.clearTimeout(autocompleteTimerRef.current);
     }
     autocompleteTimerRef.current = window.setTimeout(() => {
       autocompleteTimerRef.current = null;
-      void convertRecentFieldToken(editor, caret);
+      void convertRecentFieldToken(editor);
     }, 0);
   };
   // ===== End {{field}} autocomplete logic =====
@@ -565,18 +580,7 @@ function App() {
             }}
             onTransaction={({ sourceEditor, transaction }) => {
               if (transaction.docChanged) {
-                const selection = sourceEditor.doc.selection.current().target;
-                const segment = selection
-                  ? selection.segments[selection.segments.length - 1]
-                  : undefined;
-                if (segment) {
-                  scheduleFieldTokenConversion(sourceEditor, {
-                    kind: "text",
-                    blockId: segment.blockId,
-                    offset: segment.range.end,
-                    ...(selection?.story ? { story: selection.story } : {}),
-                  });
-                }
+                scheduleFieldTokenConversion(sourceEditor);
               }
             }}
             onEditorDestroy={() => {
